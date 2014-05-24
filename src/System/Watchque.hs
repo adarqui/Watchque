@@ -7,12 +7,14 @@ module System.Watchque (
  s2w',
  chunk,
  wqInit,
- wqAdd
+ wqAdd,
+ wNew
 ) where
 
 import System.INotify
 import Text.Regex
 import Data.Maybe
+import Data.List
 
 deriving instance Show EventVariety
 
@@ -37,7 +39,14 @@ wqInit = initINotify
 
 wqAdd :: INotify -> Watch -> (Event -> IO ()) -> IO WatchDescriptor
 wqAdd iN w cb = do
- addWatch iN (_mask w) (_source $ _arg w) cb
+ addWatch iN mask (_source $ _arg w) cb
+ where
+  mask = case (_rec w == True) of
+   True -> nub $_mask w ++ [Create,MoveIn]
+   False -> _mask w
+
+wNew :: Watch -> String -> Watch
+wNew w f = w { _arg = (_arg w) { _source = f } }
 
 ss2w :: [String] -> [[Watch]]
 ss2w ss = map s2w ss
@@ -62,7 +71,7 @@ s2w s = map s2w'
 s2w' :: WatchArg -> Watch
 s2w' a = Watch {
  _arg = a,
- _rec = any (=='N') events,
+ _rec = not $ any (=='N') events,
  _mask = s2e events
  }
  where
@@ -70,14 +79,21 @@ s2w' a = Watch {
 
 s2e :: String -> [EventVariety]
 s2e [] = []
-s2e (s:ss) = ev ++ s2e ss
+s2e (s:ss) = nub $ ev ++ s2e ss
  where
   ev = case s of
+   'a' -> [AllEvents]
    'c' -> [Create, MoveIn]
    'u' -> [Modify, Attrib]
    'd' -> [Delete, DeleteSelf]
    'r' -> [MoveSelf, MoveOut]
    'C' -> [CloseWrite]
+   'A' -> [Attrib]
+   'M' -> [Modify]
+   'U' -> [Modify]
+   'I' -> [MoveIn]
+   'O' -> [MoveOut]
+   'Z' -> [Create]
    _ -> []
 
 chunk :: Char -> String -> [String]
