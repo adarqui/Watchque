@@ -2,13 +2,17 @@
 module System.Watchque (
  Watch(..),
  WatchArg(..),
+ WatchEvent(..),
  ss2w,
  s2w,
  s2w',
+ s2e,
+ e2we,
  chunk,
  wqInit,
  wqAdd,
- wNew
+ wNew,
+ toResqueStr
 ) where
 
 import System.INotify
@@ -34,6 +38,8 @@ data WatchArg = WatchArg {
  _filter :: Maybe String
 } deriving (Show)
 
+type WatchEvent = (String, String)
+
 wqInit :: IO INotify
 wqInit = initINotify
 
@@ -47,6 +53,12 @@ wqAdd iN w cb = do
 
 wNew :: Watch -> String -> Watch
 wNew w f = w { _arg = (_arg w) { _source = f } }
+
+-- --  "{\"class\":\"%s\",\"args\":[{\"filePath\":\"%s/%s\",\"event\":\"%s\"}]}"
+toResqueStr :: Watch -> EventVariety -> String -> String -> String
+toResqueStr w e isDir f = "{\"class\":\""++(_class $ _arg w)++"\",\"args\":[{\"filePath\":\""++f++",\"event\":\""++(fst we)++"\",\"actual:\""++(snd we)++"\",\"isDir:\""++isDir++"\"}]}"
+ where
+  we = e2we e
 
 ss2w :: [String] -> [[Watch]]
 ss2w ss = map s2w ss
@@ -82,7 +94,7 @@ s2e [] = []
 s2e (s:ss) = nub $ ev ++ s2e ss
  where
   ev = case s of
-   'a' -> [AllEvents]
+   'a' -> [AllEvents,Create,MoveIn,Modify,Delete,DeleteSelf,MoveSelf,MoveOut,CloseWrite,CloseNoWrite,Attrib]
    'c' -> [Create, MoveIn]
    'u' -> [Modify, Attrib]
    'd' -> [Delete, DeleteSelf]
@@ -95,6 +107,22 @@ s2e (s:ss) = nub $ ev ++ s2e ss
    'O' -> [MoveOut]
    'Z' -> [Create]
    _ -> []
+
+e2we :: EventVariety -> WatchEvent
+e2we e = case e of
+ Attrib -> ("MODIFY","ATTRIB")
+ Create -> ("CREATE","CREATE")
+ Delete -> ("DELETE","DELETE")
+ Access -> ("ACCESS","ACCESS")
+ Modify -> ("MODIFY","MODIFY")
+ MoveIn -> ("CREATE","MOVEIN")
+ MoveOut -> ("DELETE","MOVEOUT")
+ MoveSelf -> ("DELETE","MOVESELF")
+ Open -> ("OPEN","OPEN")
+ Close -> ("CLOSE","CLOSE")
+ CloseWrite -> ("CLOSE_WRITE","CLOSE")
+ CloseNoWrite -> ("CLOSE_NOWRITE","CLOSE")
+ _ -> ("UNKNOWN","UNKNOWN")
 
 chunk :: Char -> String -> [String]
 chunk _ [] = []

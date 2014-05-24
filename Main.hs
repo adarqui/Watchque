@@ -27,45 +27,33 @@ runArgv argv = do
  let initial_watchers = concat $ ss2w $ tail argv
  mapM_ (\w -> runRecursive red iN w) initial_watchers
  getLineLoop
- return ()
  where
   argv0 = chunk ':' (argv !! 0)
   (rhost,rport) = (argv0 !! 0, argv0 !! 1)
 
 runRecursive :: Connection -> INotify -> Watch -> IO ()
 runRecursive red iN w = do
- putStrLn f
  isDir <- doesDirectoryExist f
  case (all (== True) [_rec w, isDir]) of
   True -> do
---   possibleDirs <- getDirectoryContents f
---   putStrLn $ show possibleDirs
---   actualDirs <- filterM (\x -> doesDirectoryExist (f ++ "/" ++ x)) $ filter (\x -> all (/=x) [".", ".."]) possibleDirs
---   putStrLn $ show actualDirs
    actualDirs <- getDirectoryContents f >>= \z -> filterM (\x -> doesDirectoryExist (f ++ "/" ++ x)) $ filter (\x -> all (/=x) [".", ".."]) z
---   mapM_ (\x -> runRecursive red iN (w { _arg = (_arg w) { _source = (f ++ "/" ++ x) }} )) actualDirs
    mapM_ (\x -> runRecursive red iN (wNew w (f ++ "/" ++ x))) actualDirs
    runWatch red iN w
   False -> runWatch red iN w
- return ()
  where
   f = _source $ _arg w
 
 runWatch :: Connection -> INotify -> Watch -> IO ()
 runWatch red iN w = do
  putStrLn $ show w
- r <- wqAdd iN w
+ _ <- wqAdd iN w
   (\ev -> do
    let _ = do
         print "fixme"
        wrap e isDir mF cb = do
-        putStrLn $ "wrapper" ++ show e ++ show isDir
-
         if (isDir && _rec w == True && any (==e) [Create,MoveIn])
          then
           do
-           putStrLn $ full_path (fromJust mF)
---           runRecursive red iN w { _arg = (_arg w) { _source = full_path (fromJust mF) } }
            runRecursive red iN (wNew w (full_path (fromJust mF)))
          else
           return ()
@@ -73,20 +61,19 @@ runWatch red iN w = do
         if (mF /= Nothing && any (==e) (_mask w))
          then
           do
-           _ <- liftIO $ enqueue red (fromJust mF)
+           _ <- liftIO $ enqueue e (show isDir :: String) (fromJust mF)
            cb
          else
           return ()
-       enqueue ev f = do
---  "{\"class\":\"%s\",\"args\":[{\"filePath\":\"%s/%s\",\"event\":\"%s\"}]}"
+       enqueue ev isDir f = do
         runRedis red $ do
-         rpush (B.pack (_queuePreFormatted (_arg w))) [B.pack (full_path f)]
+         rpush (B.pack (_queuePreFormatted (_arg w))) [B.pack (toResqueStr w ev isDir (full_path f))]
        full_path f =
          _source (_arg w) ++ "/" ++ f
        doNothing = do
         return ()
        qOverflow = do
-        _ <- liftIO $ enqueue red "overflow"
+        return ()
         putStrLn "qOverflow"
        unknown = do
         print $ "UNKNOWN event" ++ show ev
@@ -98,14 +85,14 @@ runWatch red iN w = do
      Modified d f -> wrap Modify d f $ doNothing
      MovedIn d f _ -> wrap MoveIn d (Just f) $ doNothing
      MovedOut d f _ -> wrap MoveOut d (Just f) $ doNothing
-     MovedSelf d -> wrap MoveSelf d (Just "h") $ doNothing
+     MovedSelf d -> wrap MoveSelf d (Just "_") $ doNothing
      Opened d f -> wrap Open d f $ doNothing
      Closed d f wW -> wrap (if wW == True then CloseWrite else Close) d f $ doNothing
      QOverflow -> qOverflow
      _  -> unknown
-   >>= \x -> print x
+   >>= \x -> return x
    )
- putStrLn $ show r
+-- putStrLn $ show r
  return ()
 
 main :: IO ()
