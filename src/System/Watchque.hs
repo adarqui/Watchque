@@ -12,6 +12,7 @@ module System.Watchque (
  wqInit,
  wqAdd,
  wNew,
+ wDump,
  toResqueStr
 ) where
 
@@ -24,10 +25,9 @@ deriving instance Show EventVariety
 
 data Watch = Watch {
  _arg :: WatchArg,
--- _filterRe :: Maybe Regex,
  _mask :: [EventVariety],
  _rec :: Bool
-} deriving (Show)
+}
 
 data WatchArg = WatchArg {
  _class :: String,
@@ -35,8 +35,9 @@ data WatchArg = WatchArg {
  _queuePreFormatted :: String,
  _events :: String,
  _source :: String,
- _filter :: Maybe String
-} deriving (Show)
+ _filter :: Maybe String,
+ _filterRe :: Maybe Regex
+}
 
 type WatchEvent = (String, String)
 
@@ -53,6 +54,12 @@ wqAdd iN w cb = do
 
 wNew :: Watch -> String -> Watch
 wNew w f = w { _arg = (_arg w) { _source = f } }
+
+wDump :: Watch -> IO ()
+wDump w = do
+ putStrLn $ "Dumping watch:" ++ "\n\tsource: " ++ _source aw ++ "\n\tclass: " ++ _class aw ++ "\n\tqueue: " ++ _queue aw ++ "\n\tresque: " ++ _queuePreFormatted aw ++ "\n\tevents: " ++ _events aw ++ "\n\tfilter: " ++ (show (_filter aw)) ++ "\n\tmask: " ++ show (_mask w) ++ "\n\trecursive: " ++ show (_rec w) ++ "\n"
+ where
+  aw = _arg w
 
 -- --  "{\"class\":\"%s\",\"args\":[{\"filePath\":\"%s/%s\",\"event\":\"%s\"}]}"
 toResqueStr :: Watch -> EventVariety -> String -> String -> String
@@ -72,7 +79,8 @@ s2w s = map s2w'
    _queuePreFormatted = "resque:queue:"++h!!1,
    _events = h !! 2,
    _source = x,
-   _filter = if length h > 4 then Just (h !! 4) else Nothing
+   _filter = if length h > 4 then Just (h !! 4) else Nothing,
+   _filterRe = if length h > 4 then Just (mkRegex (h !! 4)) else Nothing
    }
   )
  t)

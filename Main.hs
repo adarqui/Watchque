@@ -11,6 +11,7 @@ import System.Directory
 import Database.Redis
 import qualified Data.ByteString.Char8 as B
 import Data.Maybe
+import Text.Regex
 
 usage :: IO ()
 usage = do
@@ -45,7 +46,8 @@ runRecursive red iN w = do
 
 runWatch :: Connection -> INotify -> Watch -> IO ()
 runWatch red iN w = do
- putStrLn $ show w
+-- putStrLn $ show w
+ wDump w
  _ <- wqAdd iN w
   (\ev -> do
    let _ = do
@@ -61,8 +63,12 @@ runWatch red iN w = do
         if (mF /= Nothing && any (==e) (_mask w))
          then
           do
-           _ <- liftIO $ enqueue e (show isDir :: String) (fromJust mF)
-           cb
+           if (isNothing (_filterRe (_arg w))) || (not (isNothing (matchRegex (fromJust (_filterRe (_arg w))) (full_path (fromJust mF))))) then
+            do
+             _ <- liftIO $ enqueue e (show isDir :: String) (fromJust mF)
+             cb
+            else
+            return ()
          else
           return ()
        enqueue ev isDir f = do
