@@ -13,7 +13,9 @@ dirs:
 	bash -c "mkdir -p /tmp/wq/{a,c,u,d,D,r,C,A,M,U,I,O,Z,CN,CWorking}"
 
 local_dirs:
-	echo hi
+	bash -c "mkdir -p /tmp/wq/bin/"
+	bash -c 'for i in `seq 1 13`; do mkdir -p /tmp/wq/bin/class$$i; done'
+	bash -c 'for i in `seq 1 13`; do printf "#!/bin/bash\necho im $$i \$$@\n" > /tmp/wq/bin/class$$i/queue$$i && chmod 755 /tmp/wq/bin/class$$i/queue$$i; done'
 
 cabal:
 	cabal install

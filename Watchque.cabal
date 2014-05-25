@@ -18,5 +18,5 @@ library
 
 executable "watchque-hs"
   main-is:             Main.hs
-  build-depends:       base ==4.7.*, HUnit ==1.2.5.*, hedis ==0.6.5, hinotify ==0.3.7, regex-compat, Watchque, bytestring, transformers ==0.3.0.*, directory ==1.2.1.*
+  build-depends:       base ==4.7.*, HUnit ==1.2.5.*, hedis ==0.6.5, hinotify ==0.3.7, regex-compat, Watchque, bytestring, transformers ==0.3.0.*, directory ==1.2.1.*, process ==1.2.0.*
   GHC-Options:         -O3 -Wall -threaded -rtsopts

@@ -18,6 +18,8 @@ module System.Watchque (
  wNew,
  wDump,
  wToResqueQueue,
+ wpktToLocalPath,
+ wpktToLocalArgs,
  wpktNew,
  wpktToResqueStr
 ) where
@@ -54,6 +56,8 @@ data WatchPacket = WatchPacket {
  _e :: EventVariety,
  _d :: Bool
 }
+
+data WatchQueue = String
 
 type WatchEvent = (String, String)
 
@@ -92,43 +96,39 @@ wqRunWatch mv iN w = do
   (\ev -> do
    let _ = do
         print "fixme"
-       wrap e isDir mF cb = do
+       wrap e isDir mF = do
         if (isDir && _rec w == True && any (==e) [Create,MoveIn])
          then
           do
            wqRunRecursive mv iN (wNew w (wFullPath w (fromJust mF)))
          else
           return ()
-
-        if (mF /= Nothing && any (==e) (_mask w))
+        if (all (==True) [isJust mF, any (==e) (_mask w)])
          then
           do
-           if (isNothing (_filterRe (_arg w))) || (not (isNothing (matchRegex (fromJust (_filterRe (_arg w))) (wFullPath w (fromJust mF))))) then
+           if (any (==True) [isNothing (_filterRe (_arg w)), not (isNothing (matchRegex (fromJust (_filterRe (_arg w))) (wFullPath w (fromJust mF))))]) then
             do
-             putMVar mv (wpktNew w (fromJust mF) e isDir)
-             cb
+             putMVar mv (wpktNew w (wFullPath w (fromJust mF)) e isDir)
             else
             return ()
          else
           return ()
-       doNothing = do
-        return ()
        qOverflow = do
         return ()
         putStrLn "qOverflow"
        unknown = do
         print $ "UNKNOWN event" ++ show ev
     in case ev of
-     Attributes d f -> wrap Attrib d f $ doNothing
-     Created d f -> wrap Create d (Just f) $ doNothing
-     Deleted d f -> wrap Delete d (Just f) $ doNothing
-     Accessed d f -> wrap Access d f $ doNothing
-     Modified d f -> wrap Modify d f $ doNothing
-     MovedIn d f _ -> wrap MoveIn d (Just f) $ doNothing
-     MovedOut d f _ -> wrap MoveOut d (Just f) $ doNothing
-     MovedSelf d -> wrap MoveSelf d (Just "_") $ doNothing
-     Opened d f -> wrap Open d f $ doNothing
-     Closed d f wW -> wrap (if wW == True then CloseWrite else Close) d f $ doNothing
+     Attributes d f -> wrap Attrib d f
+     Created d f -> wrap Create d (Just f)
+     Deleted d f -> wrap Delete d (Just f)
+     Accessed d f -> wrap Access d f
+     Modified d f -> wrap Modify d f
+     MovedIn d f _ -> wrap MoveIn d (Just f)
+     MovedOut d f _ -> wrap MoveOut d (Just f)
+     MovedSelf d -> wrap MoveSelf d (Just "_")
+     Opened d f -> wrap Open d f
+     Closed d f wW -> wrap (if wW == True then CloseWrite else Close) d f
      QOverflow -> qOverflow
      _  -> unknown
    >>= \x -> return x
@@ -152,7 +152,7 @@ wpktNew w f e d = WatchPacket { _w = w, _f = f, _e = e, _d = d }
 
 -- --  "{\"class\":\"%s\",\"args\":[{\"filePath\":\"%s/%s\",\"event\":\"%s\"}]}"
 wpktToResqueStr :: WatchPacket -> String
-wpktToResqueStr wpkt = "{\"class\":\""++(_class wa)++"\",\"args\":[{\"filePath\":\""++wFullPath w (_f wpkt)++",\"event\":\""++(fst we)++"\",\"actual:\""++(snd we)++"\",\"isDir:\""++(show $ _d wpkt)++"\"}]}"
+wpktToResqueStr wpkt = "{\"class\":\""++(_class wa)++"\",\"args\":[{\"filePath\":\""++(_f wpkt)++",\"event\":\""++(fst we)++"\",\"actual:\""++(snd we)++"\",\"isDir:\""++(show $ _d wpkt)++"\"}]}"
  where
   w = _w wpkt
   wa = _arg w
@@ -160,6 +160,15 @@ wpktToResqueStr wpkt = "{\"class\":\""++(_class wa)++"\",\"args\":[{\"filePath\"
 
 wToResqueQueue :: Watch -> String
 wToResqueQueue w = "resque:queue:" ++ (_queue $ _arg $ w)
+
+wpktToLocalPath :: WatchPacket -> String -> String
+wpktToLocalPath wpkt loc = loc ++ "/" ++ (_class $ _arg $ _w wpkt) ++ "/" ++ (_queue $ _arg $ _w wpkt)
+
+wpktToLocalArgs :: WatchPacket -> [String]
+wpktToLocalArgs wpkt = [_class wa, _queue wa, _f wpkt, fst we, snd we]
+ where
+  wa = _arg $ _w wpkt
+  we = e2we $ _e wpkt
 
 ss2w :: [String] -> [[Watch]]
 ss2w ss = map s2w ss
