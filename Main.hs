@@ -2,16 +2,11 @@
 
 module Main where
 
-import Control.Monad.IO.Class
-import Control.Monad
-import System.Watchque
-import System.Environment
-import System.INotify
-import System.Directory
-import Database.Redis
-import qualified Data.ByteString.Char8 as B
-import Data.Maybe
-import Text.Regex
+import Control.Concurrent (forkIO, newEmptyMVar, takeMVar, MVar)
+import System.Watchque (wqLaunch, ss2w, chunk, WatchPacket(..), wToResqueQueue, wpktToResqueStr)
+import Database.Redis (Connection, defaultConnectInfo, connect, runRedis, rpush, connectHost, connectPort, PortID (Service))
+import System.Environment (getArgs)
+import qualified Data.ByteString.Char8 as B (pack)
 
 usage :: IO ()
 usage = do
@@ -23,83 +18,42 @@ getLineLoop = do
 
 runArgv :: [String] -> IO ()
 runArgv argv = do
- red <- connect $ defaultConnectInfo { connectHost = rhost, connectPort = (Service rport) }
- iN <- wqInit
+ case (head $ head argv) of
+  '/' -> runLocal argv
+  _ -> runResque argv
+
+runLocal :: [String] -> IO ()
+runLocal argv = do
+ putStrLn $ show argv
+
+runResque :: [String] -> IO ()
+runResque argv = do
+ mv <- newEmptyMVar
+ _ <- forkIO $ resqueConnector mv rhost rport
  let initial_watchers = concat $ ss2w $ tail argv
- mapM_ (\w -> runRecursive red iN w) initial_watchers
+ wqLaunch mv initial_watchers
  getLineLoop
  where
   argv0 = chunk ':' (argv !! 0)
   (rhost,rport) = (argv0 !! 0, argv0 !! 1)
 
-runRecursive :: Connection -> INotify -> Watch -> IO ()
-runRecursive red iN w = do
- isDir <- doesDirectoryExist f
- case (all (== True) [_rec w, isDir]) of
-  True -> do
-   actualDirs <- getDirectoryContents f >>= \z -> filterM (\x -> doesDirectoryExist (f ++ "/" ++ x)) $ filter (\x -> all (/=x) [".", ".."]) z
-   mapM_ (\x -> runRecursive red iN (wNew w (f ++ "/" ++ x))) actualDirs
-   runWatch red iN w
-  False -> runWatch red iN w
- where
-  f = _source $ _arg w
-
-runWatch :: Connection -> INotify -> Watch -> IO ()
-runWatch red iN w = do
--- putStrLn $ show w
- wDump w
- _ <- wqAdd iN w
-  (\ev -> do
-   let _ = do
-        print "fixme"
-       wrap e isDir mF cb = do
-        if (isDir && _rec w == True && any (==e) [Create,MoveIn])
-         then
-          do
-           runRecursive red iN (wNew w (full_path (fromJust mF)))
-         else
-          return ()
-
-        if (mF /= Nothing && any (==e) (_mask w))
-         then
-          do
-           if (isNothing (_filterRe (_arg w))) || (not (isNothing (matchRegex (fromJust (_filterRe (_arg w))) (full_path (fromJust mF))))) then
-            do
-             _ <- liftIO $ enqueue e (show isDir :: String) (fromJust mF)
-             cb
-            else
-            return ()
-         else
-          return ()
-       enqueue ev isDir f = do
-        runRedis red $ do
-         rpush (B.pack (_queuePreFormatted (_arg w))) [B.pack (toResqueStr w ev isDir (full_path f))]
-       full_path f =
-         _source (_arg w) ++ "/" ++ f
-       doNothing = do
-        return ()
-       qOverflow = do
-        return ()
-        putStrLn "qOverflow"
-       unknown = do
-        print $ "UNKNOWN event" ++ show ev
-    in case ev of
-     Attributes d f -> wrap Attrib d f $ doNothing
-     Created d f -> wrap Create d (Just f) $ doNothing
-     Deleted d f -> wrap Delete d (Just f) $ doNothing
-     Accessed d f -> wrap Access d f $ doNothing
-     Modified d f -> wrap Modify d f $ doNothing
-     MovedIn d f _ -> wrap MoveIn d (Just f) $ doNothing
-     MovedOut d f _ -> wrap MoveOut d (Just f) $ doNothing
-     MovedSelf d -> wrap MoveSelf d (Just "_") $ doNothing
-     Opened d f -> wrap Open d f $ doNothing
-     Closed d f wW -> wrap (if wW == True then CloseWrite else Close) d f $ doNothing
-     QOverflow -> qOverflow
-     _  -> unknown
-   >>= \x -> return x
-   )
--- putStrLn $ show r
+resqueEnqueue :: Connection -> WatchPacket -> IO ()
+resqueEnqueue con wpkt = do
+ _ <- runRedis con $ do
+  rpush (B.pack $ wToResqueQueue $ _w $ wpkt) [B.pack $ wpktToResqueStr wpkt]
  return ()
+
+resqueHandler :: MVar WatchPacket -> Connection -> IO ()
+resqueHandler mv con = do
+ wpkt <- takeMVar mv
+ resqueEnqueue con wpkt
+ resqueHandler mv con
+
+resqueConnector :: MVar WatchPacket -> String -> String -> IO ()
+resqueConnector mv rhost rport = do
+ red <- connect $ defaultConnectInfo { connectHost = rhost, connectPort = (Service rport) }
+ resqueHandler mv red
+ resqueConnector mv rhost rport
 
 main :: IO ()
 main = do

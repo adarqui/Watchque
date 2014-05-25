@@ -2,7 +2,8 @@
 module System.Watchque (
  Watch(..),
  WatchArg(..),
- WatchEvent(..),
+ WatchEvent,
+ WatchPacket(..),
  ss2w,
  s2w,
  s2w',
@@ -11,11 +12,19 @@ module System.Watchque (
  chunk,
  wqInit,
  wqAdd,
+ wqLaunch,
+ wqRunRecursive,
+ wqRunWatch,
  wNew,
  wDump,
- toResqueStr
+ wToResqueQueue,
+ wpktNew,
+ wpktToResqueStr
 ) where
 
+import Control.Concurrent (MVar, putMVar)
+import Control.Monad (filterM)
+import System.Directory
 import System.INotify
 import Text.Regex
 import Data.Maybe
@@ -39,6 +48,13 @@ data WatchArg = WatchArg {
  _filterRe :: Maybe Regex
 }
 
+data WatchPacket = WatchPacket {
+ _w :: Watch,
+ _f :: String,
+ _e :: EventVariety,
+ _d :: Bool
+}
+
 type WatchEvent = (String, String)
 
 wqInit :: IO INotify
@@ -52,8 +68,78 @@ wqAdd iN w cb = do
    True -> nub $_mask w ++ [Create,MoveIn]
    False -> _mask w
 
+wqLaunch :: MVar WatchPacket -> [Watch] -> IO ()
+wqLaunch mv ws = do
+ iN <- wqInit
+ mapM_ (\w -> wqRunRecursive mv iN w) ws
+
+wqRunRecursive :: MVar WatchPacket -> INotify -> Watch -> IO ()
+wqRunRecursive mv iN w = do
+ isDir <- doesDirectoryExist f
+ case (all (== True) [_rec w, isDir]) of
+  True -> do
+   actualDirs <- getDirectoryContents f >>= \z -> filterM (\x -> doesDirectoryExist (f ++ "/" ++ x)) $ filter (\x -> all (/=x) [".", ".."]) z
+   mapM_ (\x -> wqRunRecursive mv iN (wNew w (f ++ "/" ++ x))) actualDirs
+   wqRunWatch mv iN w
+  False -> wqRunWatch mv iN w
+ where
+  f = _source $ _arg w
+
+wqRunWatch :: MVar WatchPacket -> INotify -> Watch -> IO ()
+wqRunWatch mv iN w = do
+ wDump w
+ _ <- wqAdd iN w
+  (\ev -> do
+   let _ = do
+        print "fixme"
+       wrap e isDir mF cb = do
+        if (isDir && _rec w == True && any (==e) [Create,MoveIn])
+         then
+          do
+           wqRunRecursive mv iN (wNew w (wFullPath w (fromJust mF)))
+         else
+          return ()
+
+        if (mF /= Nothing && any (==e) (_mask w))
+         then
+          do
+           if (isNothing (_filterRe (_arg w))) || (not (isNothing (matchRegex (fromJust (_filterRe (_arg w))) (wFullPath w (fromJust mF))))) then
+            do
+             putMVar mv (wpktNew w (fromJust mF) e isDir)
+             cb
+            else
+            return ()
+         else
+          return ()
+       doNothing = do
+        return ()
+       qOverflow = do
+        return ()
+        putStrLn "qOverflow"
+       unknown = do
+        print $ "UNKNOWN event" ++ show ev
+    in case ev of
+     Attributes d f -> wrap Attrib d f $ doNothing
+     Created d f -> wrap Create d (Just f) $ doNothing
+     Deleted d f -> wrap Delete d (Just f) $ doNothing
+     Accessed d f -> wrap Access d f $ doNothing
+     Modified d f -> wrap Modify d f $ doNothing
+     MovedIn d f _ -> wrap MoveIn d (Just f) $ doNothing
+     MovedOut d f _ -> wrap MoveOut d (Just f) $ doNothing
+     MovedSelf d -> wrap MoveSelf d (Just "_") $ doNothing
+     Opened d f -> wrap Open d f $ doNothing
+     Closed d f wW -> wrap (if wW == True then CloseWrite else Close) d f $ doNothing
+     QOverflow -> qOverflow
+     _  -> unknown
+   >>= \x -> return x
+   )
+ return ()
+
 wNew :: Watch -> String -> Watch
 wNew w f = w { _arg = (_arg w) { _source = f } }
+
+wFullPath :: Watch -> String -> String
+wFullPath w f = (_source $ _arg w) ++ "/" ++ f
 
 wDump :: Watch -> IO ()
 wDump w = do
@@ -61,11 +147,19 @@ wDump w = do
  where
   aw = _arg w
 
+wpktNew :: Watch -> String -> EventVariety -> Bool -> WatchPacket
+wpktNew w f e d = WatchPacket { _w = w, _f = f, _e = e, _d = d }
+
 -- --  "{\"class\":\"%s\",\"args\":[{\"filePath\":\"%s/%s\",\"event\":\"%s\"}]}"
-toResqueStr :: Watch -> EventVariety -> String -> String -> String
-toResqueStr w e isDir f = "{\"class\":\""++(_class $ _arg w)++"\",\"args\":[{\"filePath\":\""++f++",\"event\":\""++(fst we)++"\",\"actual:\""++(snd we)++"\",\"isDir:\""++isDir++"\"}]}"
+wpktToResqueStr :: WatchPacket -> String
+wpktToResqueStr wpkt = "{\"class\":\""++(_class wa)++"\",\"args\":[{\"filePath\":\""++wFullPath w (_f wpkt)++",\"event\":\""++(fst we)++"\",\"actual:\""++(snd we)++"\",\"isDir:\""++(show $ _d wpkt)++"\"}]}"
  where
-  we = e2we e
+  w = _w wpkt
+  wa = _arg w
+  we = e2we $ _e wpkt
+
+wToResqueQueue :: Watch -> String
+wToResqueQueue w = "resque:queue:" ++ (_queue $ _arg $ w)
 
 ss2w :: [String] -> [[Watch]]
 ss2w ss = map s2w ss
@@ -105,7 +199,8 @@ s2e (s:ss) = nub $ ev ++ s2e ss
    'a' -> [AllEvents,Create,MoveIn,Modify,Delete,DeleteSelf,MoveSelf,MoveOut,CloseWrite,CloseNoWrite,Attrib]
    'c' -> [Create, MoveIn]
    'u' -> [Modify, Attrib]
-   'd' -> [Delete, DeleteSelf]
+   'd' -> [Delete, DeleteSelf, MoveOut]
+   'D' -> [Delete, DeleteSelf]
    'r' -> [MoveSelf, MoveOut]
    'C' -> [CloseWrite]
    'A' -> [Attrib]
