@@ -1,0 +1,61 @@
+{-
+ => Depends on all of these things
+ x , ... n =>'s dependencies
+ -> pre-requisite for what follows
+-}
+
+name = Watchque
+desc = Monitor the file system for events & post these events to a backend handler
+resources = 1
+start_date = 05/21/2014
+due_date = 05/31/2014
+
+----------------------------------------------------------------------------------
+
+success => main_components
+
+main_components => timeline , stability , speed , concise , documention , easy_use, features
+
+timeline => 1_week_development
+
+features => resque , local , events , dynamic_watchers , no_recursive , filters
+
+resque => redis_connect , rpush , sadd
+
+events => ev_c , ev_u , ev_d , ev_D , ev_C , ev_r , ev_A , ev_M , ev_U , ev_I , ev_O , ev_Z
+
+redis_connect => host_port -> auth -> db -> prefix
+
+local => bin_path -> class_queue_exec
+
+stability => fault_tolerance , stress_testing , unit_tests , safe_language
+
+fault_tolerance => resque_faults , local_faults , what_if_root_folder_removed
+
+resque_faults => redis_going_down , sadd_hang , rpush_hang
+
+local_faults => exec_hang , bin_not_found
+
+what_if_root_folder_removed => root_folder_poller
+
+unit_tests => quickcheck , hunit
+
+speed => benchmarks , optimization
+
+benchmarks => file_test
+
+file_test => 10k_files -> 5x_100k_files -> 5x_1m_files
+
+concise => < 300 Lines , code_readability
+
+documentation => spec, documented_benchmarks
+
+documented_benchmarks => benchmarks -> stress_testing -> documenting_the_results
+
+stress_testing => file_test
+
+optimization => -O3
+
+safe_language => haskell
+
+easy_use => usage , cli , examples
