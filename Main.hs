@@ -4,7 +4,7 @@ module Main where
 
 import Control.Concurrent (forkIO, forkFinally, threadDelay, newEmptyMVar, takeMVar, MVar)
 import Control.Exception (try, evaluate, IOException)
-import System.Watchque (wqLaunch, ss2w, chunk, WatchPacket(..), wToResqueQueue, wpktToResqueStr, wpktToLocalPath, wpktToLocalArgs)
+import System.Watchque (wqLaunch, ss2w, WatchPacket(..), wToResqueQueue, wpktToResqueStr, wpktToLocalPath, wpktToLocalArgs)
 import Database.Redis (Connection, defaultConnectInfo, connect, runRedis, ping, rpush, sadd, connectHost, connectPort, PortID (Service), ConnectionLostException, Redis)
 import System.Environment (getArgs)
 import System.Process (createProcess, waitForProcess, proc)
@@ -12,6 +12,7 @@ import System.Timeout (timeout)
 import qualified Data.ByteString.Char8 as B (pack)
 
 import System.DevUtils.Parser (runUrl)
+import qualified System.DevUtils.Data.List as DUL (split)
 
 usage :: IO ()
 usage = do
@@ -58,7 +59,7 @@ runResque mv argv = do
  runWatchers mv argv
  getLineLoop
  where
-  argv0 = chunk ':' (argv !! 0)
+  argv0 = DUL.split ':' (argv !! 0)
   (rhost,rport) = (argv0 !! 0, argv0 !! 1)
 
 resqueEnqueue :: Connection -> WatchPacket -> IO Bool

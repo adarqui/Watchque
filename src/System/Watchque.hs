@@ -31,7 +31,7 @@ import Text.Regex
 import Data.Maybe
 import Data.List
 
-import qualified System.DevUtils.Data.List (split)
+import qualified System.DevUtils.Data.List as DUL (split)
 
 deriving instance Show EventVariety
 
