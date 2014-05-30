@@ -9,7 +9,6 @@ module System.Watchque (
  s2w',
  s2e,
  e2we,
- chunk,
  wqInit,
  wqAdd,
  wqLaunch,
@@ -31,6 +30,8 @@ import System.INotify
 import Text.Regex
 import Data.Maybe
 import Data.List
+
+import qualified System.DevUtils.Data.List (split)
 
 deriving instance Show EventVariety
 
@@ -188,8 +189,8 @@ s2w s = map s2w'
   )
  t)
  where
-  h = chunk ':' s
-  t = chunk ',' (h !! 3)
+  h = DUL.split ':' s
+  t = DUL.split ',' (h !! 3)
 
 s2w' :: WatchArg -> Watch
 s2w' a = Watch {
@@ -235,10 +236,3 @@ e2we e = case e of
  CloseWrite -> ("CLOSE_WRITE","CLOSE")
  CloseNoWrite -> ("CLOSE_NOWRITE","CLOSE")
  _ -> ("UNKNOWN","UNKNOWN")
-
-chunk :: Char -> String -> [String]
-chunk _ [] = []
-chunk d s = h : chunk d (if t == [] then [] else (tail t))
- where
-  h = takeWhile (/= d) s
-  t = dropWhile (/= d) s

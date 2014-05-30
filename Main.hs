@@ -11,6 +11,8 @@ import System.Process (createProcess, waitForProcess, proc)
 import System.Timeout (timeout)
 import qualified Data.ByteString.Char8 as B (pack)
 
+import System.DevUtils.Parser (runUrl)
+
 usage :: IO ()
 usage = do
  putStrLn "usage: ./watchque [<redishost:port>|</path/to/bin/dir>] <Class1>:<Queue1>:<Events>:<Directory1,...,DirectoryN> ... <ClassN>:<QueueN>:<Events>:<Directory1, ...,DirectoryN>"
