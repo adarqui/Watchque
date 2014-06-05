@@ -119,13 +119,6 @@ fullPath wq f = (_source $ _arg wq) ++ "/" ++ f
 pktNew :: Watch -> String -> EventVariety -> Bool -> WatchPacket
 pktNew wq f e d = WatchPacket { _w = wq, _f = f, _e = e, _d = d }
 
-{-
-runWatchers :: Handler -> [String] -> IO ()
-runWatchers f argv = do
- let initial_watchers = concat $ ss2w $ tail argv
- wqLaunch f initial_watchers
- -}
-
 runArgv :: Handler -> [String] -> IO ()
 runArgv f argv = do
  run f $ concat $ argv2wqll argv
