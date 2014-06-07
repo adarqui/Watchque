@@ -5,7 +5,7 @@ module Main where
 import qualified System.Watchque as WQ (WatchPacket(..), Handler, runArgv)
 import qualified System.Watchque.Cli as Cli (dumpWq, dumpPkt)
 import System.Environment (getArgs)
-import System.DevUtils.Misc (getLineLoop)
+import System.DevUtils.Base.Misc (getLineLoop)
 
 main :: IO ()
 main = do

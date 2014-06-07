@@ -21,7 +21,7 @@ import Text.Regex
 import Data.List
  (nub)
 
-import qualified System.DevUtils.Data.List as DUL
+import qualified System.DevUtils.Base.Data.List as DUL
  (split)
 
 deriving instance Show EventVariety

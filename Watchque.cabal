@@ -2,7 +2,7 @@ name:                Watchque
 version:             0.1.0.0
 synopsis:            Monitor fs via inotify and fire off events
 description:         Monitor fs via inotify and fire off events
-homepage:            https://github.com/adarqui/watchque-hs
+homepage:            https://github.com/adarqui/Watchque
 license:             GPL-3
 license-file:        LICENSE
 author:              adarqui
@@ -13,7 +13,7 @@ cabal-version:       >=1.8
 
 source-repository head
  type: git
- location: https://github.com/adarqui/watchque-hs
+ location: https://github.com/adarqui/Watchque
 
 library
   exposed-modules:
@@ -21,12 +21,12 @@ library
    System.Watchque.Include
    System.Watchque.Internal
    System.Watchque.Cli
-  build-depends:       base ==4.7.*, HUnit ==1.2.5.*, hinotify ==0.3.7, regex-compat, bytestring, transformers ==0.4.1.*, directory ==1.2.1.*, devutils
+  build-depends:       base ==4.7.*, HUnit ==1.2.5.*, hinotify ==0.3.7, regex-compat, bytestring, transformers ==0.4.1.*, directory ==1.2.1.*, DevUtils-Base
   GHC-Options:         -Wall
   hs-source-dirs:      src
 
 executable "simple"
   main-is:             simple.hs
-  build-depends:       base ==4.7.*, HUnit ==1.2.5.*, hinotify ==0.3.7, regex-compat, bytestring, transformers == 0.4.1.*, directory ==1.2.1.*, devutils, Watchque
+  build-depends:       base ==4.7.*, HUnit ==1.2.5.*, hinotify ==0.3.7, regex-compat, bytestring, transformers == 0.4.1.*, directory ==1.2.1.*, DevUtils-Base, Watchque
   GHC-Options:         -O3 -Wall -threaded -rtsopts
   hs-source-dirs:      examples
